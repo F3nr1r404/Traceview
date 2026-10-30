@@ -1,0 +1,11 @@
+Model Information:
+* title:	FREIGHTLINER CASCADIA 2020
+* source:	https://sketchfab.com/3d-models/freightliner-cascadia-2020-2dd8eb87823c4eacabfb9d145eff5450
+* author:	liebherr996litronic (https://sketchfab.com/liebherr996litronic)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "FREIGHTLINER CASCADIA 2020" (https://sketchfab.com/3d-models/freightliner-cascadia-2020-2dd8eb87823c4eacabfb9d145eff5450) by liebherr996litronic (https://sketchfab.com/liebherr996litronic) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
