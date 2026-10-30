@@ -29,16 +29,22 @@ This repo holds the working web prototype, the product design doc, and the conce
 - **Voice:** "next step", "previous step" (or "back"), "hide panels", "show panels". Turn on **Hands-free** to keep the mic listening (Chrome, needs internet for speech recognition).
 - **Vehicle card:** the loaded vehicle (year, model, VIN) always shows on the glasses, full size when idle and a one-line badge during a job.
 - **Hide panels:** toolbar button, phone Settings, voice, or hold the glasses button. Hides the step and info panels; the vehicle badge stays.
+- **Truck link:** Scan or Job tab → **Connect truck bridge** reads live data and active fault codes from the CoreS3 bridge (see Truck bridge below). A matching fault code offers **Start job**, and the glasses vehicle card shows the fault count.
 - **HUD window:** phone Settings → Open HUD window (or add `?hud=1` to the URL) opens a HUD-only window that stays in sync with the phone app in the same browser. Use it when the glasses are a second screen (laptop, Samsung DeX). Pick **Overlay only (no camera)** if that device has no rear camera.
 
 Nothing is recorded or captured. The camera feed stays on the device.
 
 **Limits:** Safari on iPhone has no WebXR AR yet, so it uses camera mode. AR mode is one full-screen view, not the two-lens layout. Part positions are **estimates** for a 2026 Cascadia 126 day cab. Use the developer tech mode in `/demo-3d/` to save real measurements.
 
+## Truck bridge (CoreS3 + CAN)
+
+`firmware/traceview-bridge/` is a PlatformIO project for an **M5Stack CoreS3 + CANBus Unit (U085)**. It reads the truck's J1939 bus in **listen-only** mode (fault codes, lamps, battery volts, RPM, coolant, oil, speed) and sends it to the phone app over Bluetooth. In the phone app, **Scan** or **Job** → **Connect truck bridge** (Chrome on Android or a computer). Wiring and build steps are in [its README](firmware/traceview-bridge/README.md).
+
 ## Repo layout
 
 ```
 index.html                 live camera + WebXR AR build (single file)
+firmware/traceview-bridge/ CoreS3 J1939 truck bridge (PlatformIO)
 demo-3d/                   3D-model build (three.js r160 + CC BY Cascadia model)
 docs/
   TraceView-Design-Concept.md   product design doc

@@ -2427,6 +2427,107 @@ renderSettings=function(){_renderSettings();
   renderChips();showInfo();render();if(tab==='settings')prender();
 })();
 
+/* ============================================================
+   TRUCK LINK (v1.1) — phone ⇄ CoreS3 TraceView Bridge over Web Bluetooth
+   The bridge listens to J1939 (listen-only) and sends JSON lines:
+     {"t":"st",...}  {"t":"live",...}  {"t":"dm1","lamps":{...},"codes":[{sa,spn,fmi,oc}]}
+   Works in Chrome on Android / desktop. iPhone Safari has no Web Bluetooth.
+   ============================================================ */
+const TL_SVC='7a1c0001-5e2b-4b8e-9c1a-74726163ee01', TL_TX='7a1c0002-5e2b-4b8e-9c1a-74726163ee01', TL_RX='7a1c0003-5e2b-4b8e-9c1a-74726163ee01';
+var TRUCK={dev:null,rx:null,connected:false,connecting:false,buf:'',st:null,live:null,codes:[],lamps:null,last:0,err:'',seen:new Set()};
+const TL_SA={0:'Engine',1:'Engine #2',3:'Transmission',11:'Brakes (ABS)',15:'Retarder',23:'Instrument cluster',33:'Body controller',49:'Cab controller',61:'Aftertreatment'};
+const TL_SPN={168:'Battery potential',158:'Keyswitch battery potential',110:'Coolant temperature',100:'Oil pressure',190:'Engine speed',84:'Vehicle speed',94:'Fuel delivery pressure',3251:'DPF differential pressure',3226:'Aftertreatment outlet NOx',4364:'SCR conversion efficiency',5246:'SCR inducement severity',1569:'Engine derate',639:'J1939 network #1'};
+const TL_FMI=['Above normal, most severe','Below normal, most severe','Erratic / intermittent','Voltage high / shorted high','Voltage low / shorted low','Current low / open circuit','Current high / grounded','Mechanical not responding','Abnormal frequency','Abnormal update rate','Abnormal rate of change','Root cause unknown','Bad device or component','Out of calibration','Special instructions','Above normal, least severe','Above normal, moderate','Below normal, least severe','Below normal, moderate','Network data error','Data drifted high','Data drifted low'];
+const tlFmi=f=>f===31?'Condition exists':(TL_FMI[f]||'Reserved');
+const tlJobFor=c=>c.spn===JOB.code.spn;            // the demo job covers SPN 168 (battery potential)
+
+async function truckConnect(){
+  if(!navigator.bluetooth){TRUCK.err='Bluetooth from a web page needs Chrome on Android or a computer. iPhone Safari does not support it.';truckRender();return;}
+  try{TRUCK.connecting=true;TRUCK.err='';truckRender();
+    const dev=await navigator.bluetooth.requestDevice({filters:[{namePrefix:'TraceView'}],optionalServices:[TL_SVC]});
+    TRUCK.dev=dev;dev.addEventListener('gattserverdisconnected',truckLost);
+    const srv=await dev.gatt.connect();const svc=await srv.getPrimaryService(TL_SVC);
+    const tx=await svc.getCharacteristic(TL_TX);TRUCK.rx=await svc.getCharacteristic(TL_RX);
+    tx.addEventListener('characteristicvaluechanged',e=>truckData(new TextDecoder().decode(e.target.value)));
+    await tx.startNotifications();
+    TRUCK.connected=true;TRUCK.connecting=false;TRUCK.buf='';gl(`Truck link: connected to ${dev.name||'bridge'}`,'ok');toast('Truck bridge connected');
+  }catch(e){TRUCK.connecting=false;TRUCK.err=/cancel/i.test(e.message||'')?'':('Could not connect: '+(e.message||e));}
+  truckRender();
+}
+function truckLost(){if(!TRUCK.connected)return;TRUCK.connected=false;TRUCK.st=null;gl('Truck link: bridge disconnected','warn');toast('Truck bridge disconnected');truckRender();showInfo();}
+function truckDisconnect(){try{if(TRUCK.dev&&TRUCK.dev.gatt.connected)TRUCK.dev.gatt.disconnect();}catch(e){}truckLost();TRUCK.codes=[];TRUCK.live=null;truckRender();showInfo();}
+async function truckSend(cmd){if(!TRUCK.rx)return;try{await TRUCK.rx.writeValue(new TextEncoder().encode(cmd));}catch(e){TRUCK.err='Send failed: '+e.message;truckRender();}}
+
+function truckData(chunk){TRUCK.buf+=chunk;let i;
+  while((i=TRUCK.buf.indexOf('\n'))>=0){const line=TRUCK.buf.slice(0,i).trim();TRUCK.buf=TRUCK.buf.slice(i+1);if(!line)continue;
+    let m;try{m=JSON.parse(line);}catch(e){continue;}
+    TRUCK.last=Date.now();
+    if(m.t==='st')TRUCK.st=m;
+    else if(m.t==='live')TRUCK.live=m;
+    else if(m.t==='dm1'){TRUCK.lamps=m.lamps;TRUCK.codes=m.codes||[];
+      TRUCK.codes.forEach(c=>{const k=`${c.sa}:${c.spn}:${c.fmi}`;if(!TRUCK.seen.has(k)){TRUCK.seen.add(k);
+        gl(`Truck fault: SPN ${c.spn} FMI ${c.fmi} from ${TL_SA[c.sa]||'SA '+c.sa}`,'warn');
+        toast(`Active fault: SPN ${c.spn} FMI ${c.fmi}${tlJobFor(c)?' · job available':''}`);}});
+      showInfo();}
+  }
+  if(TRUCK.buf.length>4000)TRUCK.buf='';
+  truckRender();
+}
+
+/* ---------- phone card (Scan + Job tabs) ---------- */
+function truckCardHTML(){
+  const st=TRUCK.st,L=TRUCK.live,on=TRUCK.connected;
+  const bus=!on?'':st?(st.demo?'<span class="pill" style="background:#7c4a03;color:#fde68a">DEMO DATA</span>':st.bus==='ok'?`<span class="pill ok">J1939 ${st.baud/1000}k · ${st.fps}/s</span>`:st.bus==='scanning'?'<span class="pill">SCANNING BUS</span>':'<span class="pill no">NO BUS</span>'):'<span class="pill">WAITING</span>';
+  if(!on) return `<div class="pcard" id="truckcard"><h3>Truck link</h3><div style="font-size:12.5px" class="sub">Connect the CoreS3 bridge on the truck's 9-pin port to read live data and active fault codes (listen-only).</div>
+    ${TRUCK.err?`<div style="font-size:12px;color:#f87171;margin-top:6px">${esc(TRUCK.err)}</div>`:''}
+    <button class="btn" data-tl="connect" ${TRUCK.connecting?'disabled':''}>${TRUCK.connecting?'Connecting…':'🔌 Connect truck bridge'}</button></div>`;
+  const v=(x,u,d=0)=>x==null?'<span style="opacity:.4">--</span>':`<b>${(+x).toFixed(d)}</b> ${u}`;
+  const lamps=TRUCK.lamps?['mil','awl','rsl','pl'].filter(k=>TRUCK.lamps[k]).map(k=>({mil:'MIL',awl:'Amber',rsl:'Red stop',pl:'Protect'})[k]):[];
+  const codes=TRUCK.codes.map(c=>`<div class="tlcode"><div><b>SPN ${c.spn} · FMI ${c.fmi}</b><span>${esc(TL_SPN[c.spn]||'')}${TL_SPN[c.spn]?' · ':''}${tlFmi(c.fmi)}</span><small>${esc(TL_SA[c.sa]||'Source '+c.sa)} · count ${c.oc}</small></div>
+      ${tlJobFor(c)&&!job.active?`<button class="btn" style="margin:0;width:auto;padding:0 12px;height:34px" data-tl="job">Start job</button>`:''}</div>`).join('');
+  return `<div class="pcard" id="truckcard"><div class="row"><h3 style="margin:0">Truck link</h3><span style="margin-left:auto">${bus}</span></div>
+    <div class="tlgrid"><div>Battery<br>${v(L&&L.bat,'V',2)}</div><div>Engine<br>${v(L&&L.rpm,'rpm')}</div><div>Coolant<br>${v(L&&L.cool,'°F')}</div><div>Oil<br>${v(L&&L.oil,'psi')}</div><div>Speed<br>${v(L&&L.mph,'mph')}</div></div>
+    ${L&&L.vin?`<div style="font-size:12px;margin-top:4px">Bus VIN: <span class="mono">${esc(L.vin)}</span>${pkg&&pkg.vin!==L.vin?' <b style="color:#f87171">≠ loaded vehicle</b>':''}</div>`:''}
+    <div style="font-size:12px;margin:8px 0 4px;font-weight:700">Active fault codes ${lamps.length?`<span style="color:#fbbf24">· ${lamps.join(', ')} lamp on</span>`:''}</div>
+    ${codes||'<div style="font-size:12.5px;opacity:.7">None reported</div>'}
+    <div class="row" style="margin-top:10px;gap:8px"><button class="btn sec" style="margin:0" data-tl="demo">${st&&st.demo?'Stop demo data':'Demo data'}</button><button class="btn sec" style="margin:0" data-tl="disc">Disconnect</button></div></div>`;
+}
+function truckBind(root){(root||document).querySelectorAll('[data-tl]').forEach(b=>b.onclick=()=>{const a=b.dataset.tl;
+  if(a==='connect')truckConnect();else if(a==='disc')truckDisconnect();
+  else if(a==='demo')truckSend(TRUCK.st&&TRUCK.st.demo?'demo off':'demo on');
+  else if(a==='job'){if(!pkg){toast('Send a vehicle to the glasses first');setTab('scan');return;}run('start job');setTab('job');}});}
+function truckRender(){const c=document.getElementById('truckcard');if(!c)return;c.outerHTML=truckCardHTML();truckBind(document.getElementById('truckcard'));}
+const _renderScanTL=renderScan, _renderJobTL=renderJob;
+renderScan=function(){_renderScanTL();screen.insertAdjacentHTML('afterbegin',truckCardHTML());truckBind(screen);};
+renderJob=function(){_renderJobTL();if(!pkg)return;const h=screen.querySelector('.subtabs');(h||screen.firstChild).insertAdjacentHTML('beforebegin',truckCardHTML());truckBind(screen);};
+
+/* ---------- real battery volts in the job's live data ---------- */
+const _liveRowsTL=liveRows;
+liveRows=function(){const r=_liveRowsTL();const L=TRUCK.connected&&TRUCK.live;
+  if(L&&L.bat!=null){r[0]=['Battery voltage · LIVE FROM TRUCK',`${(+L.bat).toFixed(2)} V`,'≥ 12.4',L.bat>=12.4];}
+  return r;};
+
+/* ---------- glasses vehicle card: active fault count ---------- */
+const _renderVCardTL=renderVCard;
+renderVCard=function(){_renderVCardTL();if(!TRUCK.connected||!TRUCK.codes.length||vcard.style.display==='none')return;
+  const c=TRUCK.codes[0],n=TRUCK.codes.length;
+  if(vcard.classList.contains('mini'))vcard.querySelector('.hd').insertAdjacentHTML('beforeend',` <span style="color:#fbbf24">· ⚠ ${n}</span>`);
+  else vcard.insertAdjacentHTML('beforeend',`<div class="line" style="color:#fbbf24;font-weight:700">⚠ ${n} active fault${n>1?'s':''} · SPN ${c.spn} FMI ${c.fmi}</div>`);};
+
+/* voice: "connect truck" */
+const _runTL=run;
+run=function(raw,fromRemote){const t=norm(raw);
+  if(/^(connect|link)( the)? (truck|bridge)$/.test(t)){truckConnect();return;}
+  if(/^(read|show)( the)? (codes|fault codes|faults)$/.test(t)&&TRUCK.connected){setTab('scan');toast(`${TRUCK.codes.length} active fault code(s)`);return;}
+  return _runTL(raw,fromRemote);};
+
+(function(){const s=document.createElement('style');s.textContent=`
+.tlgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:8px;font-size:11px;line-height:1.35;opacity:.95}
+.tlgrid>div{background:rgba(127,147,173,.12);border-radius:8px;padding:6px}.tlgrid b{font-size:14px}
+.tlcode{display:flex;align-items:center;gap:8px;padding:8px;border-radius:10px;background:rgba(251,191,36,.10);border:1px solid rgba(251,191,36,.35);margin-top:6px}
+.tlcode>div{flex:1;display:flex;flex-direction:column;font-size:12px;gap:1px}.tlcode b{font-size:13.5px}.tlcode small{opacity:.7}`;document.head.appendChild(s);})();
+if(tab==='scan'||tab==='job')prender();
+
 </script>
 </body>
 </html>
