@@ -23,11 +23,12 @@ This repo holds the working web prototype, the product design doc, and the conce
 
 ### Glasses HUD (v1.0)
 
-- **Launch HUD** (toolbar or phone Settings → Glasses HUD) goes full screen with **no panels**. Black is see-through on the glasses. The camera feed shows only until the overlay is locked; after that the screen is black except for the overlay.
+- **Launch HUD** (toolbar or phone Settings → Glasses HUD) goes full screen with **no panels** except the vehicle card. Black is see-through on the glasses. The camera feed shows only until the overlay is locked; after that the screen is black except for the overlay.
 - **Jobs are picked on the phone** (Job tab → Start job on glasses). The glasses never show a job start panel. They show only the current step.
 - **Glasses button:** 1 press = next step, 2 presses = previous step, hold = hide/show panels. Use the round button in the demo, any Bluetooth clicker or keyboard (Space, Enter, arrow keys, Page Down), or tap the phone screen once the HUD is locked.
 - **Voice:** "next step", "previous step" (or "back"), "hide panels", "show panels". Turn on **Hands-free** to keep the mic listening (Chrome, needs internet for speech recognition).
-- **Hide panels:** toolbar button, phone Settings, voice, or hold the glasses button. Overlay only, no cards.
+- **Vehicle card:** the loaded vehicle (year, model, VIN) always shows on the glasses, full size when idle and a one-line badge during a job.
+- **Hide panels:** toolbar button, phone Settings, voice, or hold the glasses button. Hides the step and info panels; the vehicle badge stays.
 - **HUD window:** phone Settings → Open HUD window (or add `?hud=1` to the URL) opens a HUD-only window that stays in sync with the phone app in the same browser. Use it when the glasses are a second screen (laptop, Samsung DeX). Pick **Overlay only (no camera)** if that device has no rear camera.
 
 Nothing is recorded or captured. The camera feed stays on the device.

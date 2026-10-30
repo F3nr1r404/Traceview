@@ -291,15 +291,15 @@ body.ar #statusbar{bottom:118px;left:14px}body.ar #listen{bottom:122px}
 #hudflash{position:absolute;left:50%;bottom:16%;transform:translateX(-50%);z-index:8;font:700 16px system-ui;letter-spacing:.04em;color:#7dd3fc;text-shadow:0 0 8px #000;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
 .hudhint{margin-top:10px;font-size:11.5px;color:#8aa0bb;letter-spacing:.03em}
 #arbar .row:last-child{display:none!important}
-body.hidepanels #mpanel,body.hidepanels #vcard{display:none!important}
+body.hidepanels #mpanel{display:none!important}
 body.hud .stage{height:100vh!important;background:#000}
 body.hud:not(.ar) .stage{position:fixed;inset:0;width:100vw;border:0;border-radius:0;z-index:50}
 body.hud .eyes{inset:0}
-body.hud #eyeR,body.hud .bridge,body.hud .eyelbl,body.hud #vcard,body.hud #statusbar,body.hud #listen,body.hud #compass,body.hud .zoombtns,body.hud .camstatus,body.hud .cmdbar,body.hud #gbtn,body.hud #gbtnlbl,body.hud #mpanel .hrow{display:none!important}
+body.hud #eyeR,body.hud .bridge,body.hud .eyelbl,body.hud #statusbar,body.hud #listen,body.hud #compass,body.hud .zoombtns,body.hud .camstatus,body.hud .cmdbar,body.hud #gbtn,body.hud #gbtnlbl,body.hud #mpanel .hrow{display:none!important}
 body.hud #eyeL{border:0;border-radius:0;box-shadow:none}
-body.hud:not(.ar) #mpanel{left:12px;right:auto;width:min(400px,46%);top:40px;max-height:calc(100% - 120px)}
-body.hud.pside-right:not(.ar) #mpanel{left:auto;right:12px}
-body.hud .gexit{display:block!important;opacity:.3;z-index:60}
+body.hud:not(.ar) #mpanel{left:12px;right:auto;width:min(400px,46%);top:64px;max-height:calc(100% - 140px)}
+body.hud.pside-right:not(.ar) #mpanel,body.hud.pside-right:not(.ar) #vcard{left:auto;right:12px}
+body.hud .gexit{display:block!important;opacity:.3;z-index:60;top:auto;bottom:10px}
 body.hud.hudclear .gl{opacity:0!important}
 body.hud.hudclear .stage,body.hud.hudclear .eye{background:#000!important}
 body.hud.hudclear #arbar{display:none!important}
@@ -2264,13 +2264,17 @@ var HUD={on:false, win:/[?&]hud=1\b/.test(location.search), hide:store.get('hide
   voice:false, rec:null, chan:null, id:Math.random().toString(36).slice(2), remote:false};
 
 /* ---------- panels: no job start panel, no idle card, optional hide ---------- */
-const _renderPanel=renderPanel, _renderVCard=renderVCard;
+const _renderPanel=renderPanel;
 const hudish=()=>HUD.on||HUD.win;
-renderVCard=function(){
-  if(!pkg||gstate.mode!=='loaded'||HUD.hide||hudish()){vcard.style.display='none';return;}
-  const idle=!anyOverlay()&&!job.panel&&!st.diag;
-  if(idle){vcard.style.display='none';return;}           // nothing on the glasses until the phone asks
-  _renderVCard();
+renderVCard=function(){   // vehicle info card: always on when a vehicle is loaded (even with panels hidden)
+  if(!pkg||gstate.mode!=='loaded'){vcard.style.display='none';return;}
+  vcard.style.display='block';
+  const full=!anyOverlay()&&!job.panel&&!st.diag;
+  vcard.className='glass'+(full?'':' mini');
+  vcard.innerHTML=full?`<div class="hd"><span class="ok">✓</span>Vehicle loaded</div>
+    <div class="model">${pkg.vehicle.model_year} ${pkg.vehicle.make} ${pkg.vehicle.model}</div>
+    <div class="line">VIN: <span class="mono">${pkg.vin}</span></div><div class="line">${pkg.components.length} parts · ${pkg.circuits.length} circuits</div>`
+   :`<div class="hd" style="font-size:13px"><span class="ok" style="width:16px;height:16px;font-size:10px">✓</span>${pkg.vehicle.model_year} ${pkg.vehicle.model} · <span class="mono" style="font-weight:500;color:#c9d6e6">${pkg.vin.slice(-8)}</span></div>`;
 };
 renderPanel=function(){
   if(HUD.hide&&!dev.on){mpanel.innerHTML='';mpanel.style.display='none';return;}
