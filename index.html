@@ -282,6 +282,30 @@ body.ar.pside-right #mpanel{left:auto;right:12px}body.ar.pside-right #vcard{left
 body.ar #statusbar{bottom:118px;left:14px}body.ar #listen{bottom:122px}
 #arbar{display:none;position:absolute;left:0;right:0;bottom:0;z-index:6;padding:10px 12px 14px;gap:8px;flex-direction:column;background:linear-gradient(transparent,rgba(0,0,0,.8))}
 #arbar .hbtn{height:38px}
+
+/* ---- HUD mode ---- */
+#gbtn{position:absolute;right:14px;bottom:14px;z-index:7;width:40px;height:40px;border-radius:50%;border:2px solid #3b4f6b;background:radial-gradient(#22344d,#0d1726);box-shadow:0 2px 8px rgba(0,0,0,.6);padding:0;cursor:pointer}
+#gbtn i{display:block;width:14px;height:14px;margin:auto;border-radius:50%;background:#3b8bff;box-shadow:0 0 8px #3b8bff}
+#gbtn.press{transform:scale(.92);border-color:#3b8bff}
+#gbtnlbl{position:absolute;right:60px;bottom:26px;z-index:7;font:700 9.5px var(--cond,system-ui);letter-spacing:.12em;color:#7f93ad;pointer-events:none}
+#hudflash{position:absolute;left:50%;bottom:16%;transform:translateX(-50%);z-index:8;font:700 16px system-ui;letter-spacing:.04em;color:#7dd3fc;text-shadow:0 0 8px #000;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
+.hudhint{margin-top:10px;font-size:11.5px;color:#8aa0bb;letter-spacing:.03em}
+#arbar .row:last-child{display:none!important}
+body.hidepanels #mpanel,body.hidepanels #vcard{display:none!important}
+body.hud .stage{height:100vh!important;background:#000}
+body.hud:not(.ar) .stage{position:fixed;inset:0;width:100vw;border:0;border-radius:0;z-index:50}
+body.hud .eyes{inset:0}
+body.hud #eyeR,body.hud .bridge,body.hud .eyelbl,body.hud #vcard,body.hud #statusbar,body.hud #listen,body.hud #compass,body.hud .zoombtns,body.hud .camstatus,body.hud .cmdbar,body.hud #gbtn,body.hud #gbtnlbl,body.hud #mpanel .hrow{display:none!important}
+body.hud #eyeL{border:0;border-radius:0;box-shadow:none}
+body.hud:not(.ar) #mpanel{left:12px;right:auto;width:min(400px,46%);top:40px;max-height:calc(100% - 120px)}
+body.hud.pside-right:not(.ar) #mpanel{left:auto;right:12px}
+body.hud .gexit{display:block!important;opacity:.3;z-index:60}
+body.hud.hudclear .gl{opacity:0!important}
+body.hud.hudclear .stage,body.hud.hudclear .eye{background:#000!important}
+body.hud.hudclear #arbar{display:none!important}
+body.hudwin .brand,body.hudwin .featbar,body.hudwin .phonecol,body.hudwin .lower,body.hudwin .sect,body.hudwin #toast{display:none!important}
+body.camskip #camstart{display:none!important}
+#sidesw button.on{background:#1d3a63;border-color:#3b8bff;color:#fff}
 </style>
 </head>
 <body class="dark">
@@ -2224,6 +2248,180 @@ function placePanels(){
   if(navigator.xr&&navigator.xr.isSessionSupported){navigator.xr.isSessionSupported('immersive-ar').then(ok=>{AR.supported=ok;$('btnAR').style.display=ok?'':'none';$('arnote').textContent=ok?'AR tracking is available on this phone.':'AR tracking needs Android Chrome with Google Play Services for AR. On iPhone, use the live camera mode.';}).catch(()=>{});}
   else $('arnote').textContent='AR tracking needs Android Chrome with Google Play Services for AR. On iPhone, use the live camera mode.';
   arUI();})();
+
+/* ============================================================
+   HUD MODE (v1.0)
+   - Glasses never show the job start panel: jobs are picked on the phone.
+   - Launching the HUD shows no panels; black = see-through on the glasses.
+   - Glasses button: 1 press = next step, 2 presses = previous step,
+     hold = hide/show panels. Works with any Bluetooth clicker or keyboard.
+   - Voice: "next step" / "previous step" / "hide panels" / "show panels",
+     with an always-listening hands-free mode.
+   - ?hud=1 opens a HUD-only window that stays in sync with this one
+     (for glasses used as a second screen: laptop, Samsung DeX).
+   ============================================================ */
+var HUD={on:false, win:/[?&]hud=1\b/.test(location.search), hide:store.get('hidePanels',false),
+  voice:false, rec:null, chan:null, id:Math.random().toString(36).slice(2), remote:false};
+
+/* ---------- panels: no job start panel, no idle card, optional hide ---------- */
+const _renderPanel=renderPanel, _renderVCard=renderVCard;
+const hudish=()=>HUD.on||HUD.win;
+renderVCard=function(){
+  if(!pkg||gstate.mode!=='loaded'||HUD.hide||hudish()){vcard.style.display='none';return;}
+  const idle=!anyOverlay()&&!job.panel&&!st.diag;
+  if(idle){vcard.style.display='none';return;}           // nothing on the glasses until the phone asks
+  _renderVCard();
+};
+renderPanel=function(){
+  if(HUD.hide&&!dev.on){mpanel.innerHTML='';mpanel.style.display='none';return;}
+  mpanel.style.display='';
+  if(job.panel==='overview'&&!dev.on){mpanel.innerHTML='';return;}   // job selection lives on the phone
+  if(job.panel==='step'&&job.active&&!st.diag&&!dev.on){
+    const S=JOB.steps,s=curStep();
+    mpanel.innerHTML=`<div class="mp-h"><div class="ico">☰</div><div><span class="k">STEP ${job.i+1} OF ${S.length}</span><b>${esc(s.t)}</b></div></div>
+      <ul class="mlist">${s.sub.map((x,i)=>`<li${i===0?' class="on"':''}><span class="num">${i+1}</span>${esc(x)}</li>`).join('')}</ul>
+      <div class="hudhint">● next &nbsp;·&nbsp; ●● back &nbsp;·&nbsp; hold = hide panels</div>`;
+    return;
+  }
+  _renderPanel();
+};
+
+/* start job from the phone goes straight to step 1 */
+function hudStartJob(){job={active:true,i:0,done:new Set(),panel:'step',completed:false,torqueComp:null,ptab:job.ptab||'proc',started:true};goStep(0);say(`Step 1 of ${JOB.steps.length}: ${curStep().t}`);}
+function setHidePanels(v,quiet){HUD.hide=v;store.set('hidePanels',v);document.body.classList.toggle('hidepanels',v);
+  const b=document.getElementById('hidebtn');if(b)b.classList.toggle('on',v);
+  showInfo();render();if(!quiet)hudFlash(v?'Panels hidden':'Panels on');if(tab==='settings')prender();}
+
+/* ---------- command layer: intercepts + sync ---------- */
+const _run=run;
+run=function(raw,fromRemote){
+  const t=norm(raw);
+  let handled=true;
+  if(/^(hide|turn off|no) (the )?(all )?panels$|^panels off$/.test(t)) setHidePanels(true);
+  else if(/^(show|turn on) (the )?(all )?panels$|^panels on$/.test(t)) setHidePanels(false);
+  else if(/^(start|begin)( the)? (job|diagnos\w*|repair)$/.test(t)&&pkg){hudStartJob();listenPill(raw);gl(`🎙 “${raw}” → JOB step 1`,'cmd');render();showInfo();}
+  else if(/^(next|next step|continue|step done|done)$/.test(t)&&!job.active){say('No job running. Pick one on the phone.',true);hudFlash('No job · pick one on the phone');}
+  else if(/^(previous|previous step|prev|go back|back|last step|step back)$/.test(t)&&job.active){if(job.i>0)_run('previous step');else hudFlash('Already on step 1');}
+  else {handled=false;_run(raw);}
+  if(job.active&&/^(next|next step|continue|step done|done|previous|previous step|prev|go back|back|last step|step back)$/.test(t))hudFlash(job.panel==='complete'?'Job complete':`Step ${job.i+1} of ${JOB.steps.length}`);
+  if(!fromRemote&&HUD.chan)HUD.chan.postMessage({t:'cmd',c:raw,from:HUD.id});
+};
+
+/* ---------- small feedback text in the HUD (fades) ---------- */
+function hudFlash(m){const e=document.getElementById('hudflash');if(!e)return;e.textContent=m;e.style.opacity=1;clearTimeout(e._t);e._t=setTimeout(()=>e.style.opacity=0,1300);}
+
+/* ---------- glasses button: 1 = next, 2 = back, hold = panels ---------- */
+const GB={down:0,count:0,timer:null,holdT:null,held:false};
+function gbDown(){if(GB.down)return;GB.down=performance.now();GB.held=false;
+  const ring=document.getElementById('gbtn');if(ring)ring.classList.add('press');
+  GB.holdT=setTimeout(()=>{GB.held=true;clearTimeout(GB.timer);GB.count=0;setHidePanels(!HUD.hide);},700);}
+function gbUp(){if(!GB.down)return;GB.down=0;clearTimeout(GB.holdT);
+  const ring=document.getElementById('gbtn');if(ring)ring.classList.remove('press');
+  if(GB.held)return;
+  GB.count++;clearTimeout(GB.timer);
+  if(GB.count>=2){GB.count=0;run('previous step');return;}
+  GB.timer=setTimeout(()=>{GB.count=0;run('next step');},350);}
+const GB_KEYS=new Set([' ','Enter','ArrowRight','ArrowDown','PageDown','MediaTrackNext','MediaPlayPause','AudioVolumeUp','AudioVolumeDown','k','K']);
+addEventListener('keydown',e=>{if(/INPUT|TEXTAREA|SELECT/.test((e.target.tagName||''))||e.metaKey||e.ctrlKey)return;
+  if(GB_KEYS.has(e.key)){e.preventDefault();if(!e.repeat)gbDown();}});
+addEventListener('keyup',e=>{if(/INPUT|TEXTAREA|SELECT/.test((e.target.tagName||'')))return;if(GB_KEYS.has(e.key)){e.preventDefault();gbUp();}});
+
+/* in HUD mode, once the overlay is locked, a tap anywhere on the phone screen is the button */
+function hudLocked(){return (typeof arLocked==='function'&&arLocked())||(!AR.active&&aligned());}
+(function(){const stage=document.getElementById('stage');
+  stage.addEventListener('pointerdown',e=>{if(!hudish()||!hudLocked()||e.target.closest('button,#arbar,#camstart,.gexit'))return;e.stopPropagation();e.preventDefault();gbDown();},true);
+  stage.addEventListener('pointerup',e=>{if(!hudish()||!GB.down)return;e.stopPropagation();gbUp();},true);
+  stage.addEventListener('pointercancel',()=>{if(GB.down){GB.down=0;clearTimeout(GB.holdT);}},true);
+})();
+
+/* ---------- hands-free voice (continuous) ---------- */
+function setVoice(on){const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(on&&!SR){say('Hands-free voice needs Chrome speech recognition. Not available here.',true);on=false;}
+  HUD.voice=on;const b=document.getElementById('hvoice');if(b)b.classList.toggle('on',on);
+  document.body.classList.toggle('voiceon',on);
+  if(!on){if(HUD.rec){try{HUD.rec.onend=null;HUD.rec.stop();}catch(e){}HUD.rec=null;}if(tab==='settings')prender();return;}
+  const start=()=>{if(!HUD.voice)return;const r=new SR();r.lang='en-US';r.continuous=true;r.interimResults=false;
+    r.onresult=e=>{for(let i=e.resultIndex;i<e.results.length;i++)if(e.results[i].isFinal){const txt=e.results[i][0].transcript.trim();if(txt)run(txt);}};
+    r.onerror=e=>{if(e.error==='not-allowed'||e.error==='service-not-allowed'){say('Mic blocked. Allow microphone access for this site.',true);setVoice(false);}};
+    r.onend=()=>{if(HUD.voice)setTimeout(start,250);};   // Chrome stops every so often; keep listening
+    try{r.start();HUD.rec=r;}catch(e){}};
+  start();say('Hands-free voice on. Say “next step”, “previous step”, “hide panels”…');if(tab==='settings')prender();}
+
+/* ---------- single full view in HUD (like AR): panels go in the one view ---------- */
+const _placePanels=placePanels;
+placePanels=function(){const b=document.body,h=b.classList.contains('hud'),a=b.classList.contains('ar');if(h&&!a)b.classList.add('ar');_placePanels();if(h&&!a)b.classList.remove('ar');};
+/* ---------- launch / exit HUD on this screen ---------- */
+async function setHUD(on){HUD.on=on;document.body.classList.toggle('hud',on);document.body.classList.toggle('gonly',on);
+  try{if(on&&document.documentElement.requestFullscreen)await document.documentElement.requestFullscreen();else if(!on&&document.fullscreenElement)await document.exitFullscreen();}catch(e){}
+  const b=document.getElementById('hudbtn');if(b)b.classList.toggle('on',on);placePanels();
+  setTimeout(()=>{fit();render();pump();showInfo();},250);
+  if(on)hudFlash(job.active?`Step ${job.i+1} of ${JOB.steps.length}`:'HUD on');}
+setInterval(()=>{document.body.classList.toggle('hudclear',hudish()&&hudLocked());},300);
+document.addEventListener('fullscreenchange',()=>{if(!document.fullscreenElement&&HUD.on&&!HUD.win)setHUD(false);});
+
+/* ---------- second-screen sync (BroadcastChannel, same browser) ---------- */
+try{HUD.chan=new BroadcastChannel('traceview');}catch(e){}
+function snapshot(){return {t:'state',from:HUD.id,job:{...job,done:[...job.done]},hide:HUD.hide,active:[...st.active]};}
+if(HUD.chan)HUD.chan.onmessage=ev=>{const m=ev.data;if(!m||m.from===HUD.id)return;
+  if(m.t==='cmd')run(m.c,true);
+  else if(m.t==='hello'&&!HUD.win)HUD.chan.postMessage(snapshot());
+  else if(m.t==='state'&&HUD.win){job={...m.job,done:new Set(m.job.done)};setHidePanels(m.hide,true);
+    if(job.active&&job.panel==='step')goStep(job.i);else{resetModes();st.active=new Set(m.active);fitSelection();}render();showInfo();}
+  else if(m.t==='pkg'&&HUD.win){pkg=store.get('pkg',null);loadFromPackage(pkg);gstate.mode=pkg?'loaded':'empty';resetModes();st.active.clear();fit();render();showInfo();}};
+const _transfer=transfer;
+transfer=async function(p){const ok=await _transfer(p);if(ok&&HUD.chan)HUD.chan.postMessage({t:'pkg',from:HUD.id});return ok;};
+function openHUDWindow(){const u=location.pathname+'?hud=1';const w=window.open(u,'traceview-hud','popup,width=1280,height=720');
+  if(!w)say('Pop-up blocked. Allow pop-ups, or open '+location.origin+u+' yourself.',true);
+  else say('HUD window opened. Drag it onto the glasses display and press F11 or tap ⛶.');}
+
+/* ---------- glasses-side chips: no job controls ---------- */
+const _renderChips=renderChips;
+renderChips=function(){_renderChips();const host=document.getElementById('chips');
+  host.querySelectorAll('.chipgrp').forEach(g=>{const k=g.querySelector('b');if(k&&k.textContent==='JOB'){
+    g.innerHTML='<b>GLASSES</b>';['next step','previous step','hide panels','show panels'].forEach(c=>{const b=document.createElement('button');b.className='chip';b.textContent=c;b.onclick=()=>run(c);g.appendChild(b);});}});};
+
+/* ---------- phone settings: HUD card ---------- */
+const _renderSettings=renderSettings;
+renderSettings=function(){_renderSettings();
+  const seg=(key,opts,cur)=>`<div class="seg">${opts.map(([v,n])=>`<button data-h="${key}" data-v="${v}" class="${cur===v?'on':''}">${n}</button>`).join('')}</div>`;
+  const card=document.createElement('div');card.className='pcard';
+  card.innerHTML=`<h3>Glasses HUD</h3><div style="font-size:12.5px" class="sub">Pick jobs here on the phone. The glasses show only the overlay and the current step.</div>
+    <label class="l">Panels on the glasses</label>${seg('panels',[['show','Show panels'],['hide','Hide panels']],HUD.hide?'hide':'show')}
+    <label class="l">Hands-free voice</label>${seg('voice',[['on','🎙 Always listening'],['off','Off']],HUD.voice?'on':'off')}
+    <div style="font-size:12px;line-height:1.5;margin-top:8px"><b>Glasses button</b> (Bluetooth clicker, keyboard, or tap the screen in HUD once locked): 1 press = next step · 2 presses = previous step · hold = hide/show panels.</div>
+    <div class="row" style="margin-top:10px;gap:8px"><button class="btn" style="margin:0" id="sLaunch">🕶 Launch HUD</button><button class="btn sec" style="margin:0" id="sWin">Open HUD window</button></div>`;
+  const credits=[...screen.querySelectorAll('.pcard')].pop();screen.insertBefore(card,credits);
+  card.querySelectorAll('[data-h]').forEach(b=>b.onclick=()=>{const k=b.dataset.h,v=b.dataset.v;
+    if(k==='panels')setHidePanels(v==='hide');if(k==='voice')setVoice(v==='on');renderSettings();});
+  card.querySelector('#sLaunch').onclick=()=>setHUD(true);card.querySelector('#sWin').onclick=openHUDWindow;};
+
+/* ---------- UI wiring ---------- */
+(function(){const $=id=>document.getElementById(id);
+  const sw=$('sidesw');
+  const mk=(id,html,title,fn)=>{const b=document.createElement('button');b.id=id;b.innerHTML=html;b.title=title;b.onclick=fn;sw.insertBefore(b,$('devbtn'));return b;};
+  mk('hudbtn','🕶 Launch HUD','Full-screen glasses HUD: black = see-through, no panels',()=>setHUD(!HUD.on));
+  mk('hidebtn','▭ Hide panels','Hide all panels on the glasses (overlay only)',()=>setHidePanels(!HUD.hide)).classList.toggle('on',HUD.hide);
+  mk('hvoice','🎙 Hands-free','Always listen for voice commands',()=>setVoice(!HUD.voice));
+  // the physical button on the glasses frame (demo)
+  const st0=$('stage');const g=document.createElement('button');g.id='gbtn';g.title='Glasses button: 1 press next · 2 presses back · hold hide/show panels';g.innerHTML='<i></i>';
+  g.addEventListener('pointerdown',e=>{e.stopPropagation();e.preventDefault();gbDown();});
+  g.addEventListener('pointerup',e=>{e.stopPropagation();gbUp();});g.addEventListener('pointerleave',()=>{if(GB.down)gbUp();});
+  st0.appendChild(g);
+  const f=document.createElement('div');f.id='hudflash';st0.appendChild(f);
+  const lbl=document.createElement('div');lbl.id='gbtnlbl';lbl.textContent='GLASSES BUTTON';st0.appendChild(lbl);
+  // overlay-only (no camera): for a laptop / second screen with see-through glasses
+  const cs=document.querySelector('#camstart .camcard');if(cs){const k=document.createElement('button');k.className='hbtn';k.id='btnSkip';k.textContent='Overlay only (no camera)';
+    k.style.cssText='width:100%;height:40px;margin-top:8px';k.onclick=()=>{document.body.classList.add('camskip');fit();render();};cs.insertBefore(k,document.getElementById('arnote'));}
+  // HUD-only window
+  if(HUD.win){document.body.classList.add('hudwin','hud','gonly');HUD.on=true;placePanels();
+    if(HUD.chan)HUD.chan.postMessage({t:'hello',from:HUD.id});
+    document.querySelector('.gexit').onclick=async()=>{try{if(!document.fullscreenElement)await document.documentElement.requestFullscreen();else await document.exitFullscreen();}catch(e){}setTimeout(()=>{fit();render();},250);};}
+  document.querySelector('.gexit').addEventListener('click',e=>{if(HUD.on&&!HUD.win){e.stopImmediatePropagation();setHUD(false);}},true);
+  document.body.classList.toggle('hidepanels',HUD.hide);
+  // the overview panel should never appear on the glasses: if a job is "started" anywhere, jump to step 1
+  if(job.panel==='overview')hudStartJob();
+  renderChips();showInfo();render();if(tab==='settings')prender();
+})();
 
 </script>
 </body>

@@ -21,6 +21,15 @@ This repo holds the working web prototype, the product design doc, and the conce
 3. **Camera mode (iPhone / any browser):** tap **Live camera**. Line the steer hub and first drive hub up with the two tap targets. The overlay is fixed to the screen, so hold the phone steady.
 4. Use the chips or the command bar: `show me the starter system`, `isolate the starter relay`, `exploded view of the starter`, `start job`, `next step`, `show me where`, `clear`.
 
+### Glasses HUD (v1.0)
+
+- **Launch HUD** (toolbar or phone Settings → Glasses HUD) goes full screen with **no panels**. Black is see-through on the glasses. The camera feed shows only until the overlay is locked; after that the screen is black except for the overlay.
+- **Jobs are picked on the phone** (Job tab → Start job on glasses). The glasses never show a job start panel. They show only the current step.
+- **Glasses button:** 1 press = next step, 2 presses = previous step, hold = hide/show panels. Use the round button in the demo, any Bluetooth clicker or keyboard (Space, Enter, arrow keys, Page Down), or tap the phone screen once the HUD is locked.
+- **Voice:** "next step", "previous step" (or "back"), "hide panels", "show panels". Turn on **Hands-free** to keep the mic listening (Chrome, needs internet for speech recognition).
+- **Hide panels:** toolbar button, phone Settings, voice, or hold the glasses button. Overlay only, no cards.
+- **HUD window:** phone Settings → Open HUD window (or add `?hud=1` to the URL) opens a HUD-only window that stays in sync with the phone app in the same browser. Use it when the glasses are a second screen (laptop, Samsung DeX). Pick **Overlay only (no camera)** if that device has no rear camera.
+
 Nothing is recorded or captured. The camera feed stays on the device.
 
 **Limits:** Safari on iPhone has no WebXR AR yet, so it uses camera mode. AR mode is one full-screen view, not the two-lens layout. Part positions are **estimates** for a 2026 Cascadia 126 day cab. Use the developer tech mode in `/demo-3d/` to save real measurements.
