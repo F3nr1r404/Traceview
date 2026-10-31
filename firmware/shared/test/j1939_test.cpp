@@ -1,5 +1,5 @@
 // Host unit test for the J1939 decoder:  g++ -std=c++17 j1939_test.cpp -o jt && ./jt
-#include "../src/j1939.h"
+#include "../j1939.h"
 #include <assert.h>
 using namespace j1939;
 uint32_t mk(uint8_t prio,uint32_t pgn,uint8_t sa,uint8_t da=0xFF){uint8_t pf=(pgn>>8)&0xFF;uint32_t id=((uint32_t)prio<<26)|((pgn>>16&3)<<24)|((uint32_t)pf<<16)|((pf<240?da:(pgn&0xFF))<<8)|sa;return id;}

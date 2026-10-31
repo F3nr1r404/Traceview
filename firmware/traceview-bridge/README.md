@@ -77,7 +77,7 @@ Service `7a1c0001-5e2b-4b8e-9c1a-74726163ee01`
 | 65265 | CCVS1 | Road speed |
 | 65260 | VI | VIN (only if the truck broadcasts it; the bridge never requests it) |
 
-The decoder (`src/j1939.h`) has no hardware dependencies and is unit-tested on a PC.
+The decoder (`../shared/j1939.h`, shared with the Tab5 firmware) has no hardware dependencies and is unit-tested on a PC (`../shared/test`). Keep the `shared` folder next to this one when you build.
 
 ## Status
 

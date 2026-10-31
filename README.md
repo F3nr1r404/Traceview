@@ -36,6 +36,16 @@ Nothing is recorded or captured. The camera feed stays on the device.
 
 **Limits:** Safari on iPhone has no WebXR AR yet, so it uses camera mode. AR mode is one full-screen view, not the two-lens layout. Part positions are **estimates** for a 2026 Cascadia 126 day cab. Use the developer tech mode in `/demo-3d/` to save real measurements.
 
+## Product direction: TraceView glasses + Tab5
+
+The product is now two devices: **custom AR glasses** and an **M5Stack Tab5**. The Tab5 reads the truck, replaces the phone app, and runs a Wi-Fi hotspot. The glasses draw the overlay and send button and voice commands back. See [docs/glasses-hardware-plan.md](docs/glasses-hardware-plan.md).
+
+- `firmware/tab5/`: Tab5 firmware (dashboard, guided job, glasses hotspot). [README](firmware/tab5/README.md)
+- `firmware/shared/glasses_link.md`: how the Tab5 and glasses talk
+- `firmware/tools/glasses_sim.py`: pretend-glasses on a laptop for testing the Tab5
+
+The web build on this site stays as the concept demo and test bench.
+
 ## Truck bridge (CoreS3 + CAN)
 
 `firmware/traceview-bridge/` is a PlatformIO project for an **M5Stack CoreS3 + CANBus Unit (U085)**. It reads the truck's J1939 bus in **listen-only** mode (fault codes, lamps, battery volts, RPM, coolant, oil, speed) and sends it to the phone app over Bluetooth. In the phone app, **Scan** or **Job** → **Connect truck bridge** (Chrome on Android or a computer). Wiring and build steps are in [its README](firmware/traceview-bridge/README.md).
@@ -44,7 +54,11 @@ Nothing is recorded or captured. The camera feed stays on the device.
 
 ```
 index.html                 live camera + WebXR AR build (single file)
-firmware/traceview-bridge/ CoreS3 J1939 truck bridge (PlatformIO)
+firmware/tab5/              Tab5 firmware: truck reader + phone app + glasses hotspot
+firmware/traceview-bridge/ CoreS3 J1939 truck bridge (earlier prototype)
+firmware/shared/           J1939 decoder + tests, glasses link spec
+firmware/tools/            glasses simulator
+docs/glasses-hardware-plan.md  glasses parts list and build steps
 demo-3d/                   3D-model build (three.js r160 + CC BY Cascadia model)
 docs/
   TraceView-Design-Concept.md   product design doc
